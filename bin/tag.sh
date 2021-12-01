@@ -8,7 +8,7 @@ if [ $1 ]; then
 
   npm run build
   git add -A
-  git commit -m "Building for $version."
+  git commit -m "Build for $version."
 
   echo "Publishing version $version."
 
