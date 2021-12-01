@@ -23,24 +23,6 @@ class EmailSanitizer {
       }
     }
   }
-  public sanitize(email: string) {
-    this.originalEmail = email
-    this.email = email
-
-    if (this.config.common.lowercase) {
-      this.email = this.email.toLowerCase()
-    }
-
-    if (this.config.local.removePeriods) {
-      this.removePeriodsFromLocal()
-    }
-
-    if (this.config.local.removePlusTag) {
-      this.removePlusTag()
-    }
-
-    return this.email
-  }
   private removePeriodsFromLocal() {
     const atIndex = this.email.indexOf('@')
     if (atIndex !== -1) {
@@ -61,7 +43,36 @@ class EmailSanitizer {
       }
     }
   }
-  public sanitizeGSuite() {
+  private setEmailDetails(email: string) {
+    if (typeof email !== 'string') {
+      throw new Error(`Email not a string. ${email}`)
+    } else if (!email) {
+      throw new Error(`Email not provided. ${email}`)
+    }
+
+    this.originalEmail = email
+    this.email = email
+  }
+  public sanitize(email: string) {
+    this.setEmailDetails(email)
+
+    if (this.config.common.lowercase) {
+      this.email = this.email.toLowerCase()
+    }
+
+    if (this.config.local.removePeriods) {
+      this.removePeriodsFromLocal()
+    }
+
+    if (this.config.local.removePlusTag) {
+      this.removePlusTag()
+    }
+
+    return this.email
+  }
+  public sanitizeGSuite(email: string) {
+    this.setEmailDetails(email)
+
     this.removePeriodsFromLocal()
     this.removePlusTag()
   }
