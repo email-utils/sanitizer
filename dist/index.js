@@ -23,20 +23,6 @@ class EmailSanitizer {
             }
         }
     }
-    sanitize(email) {
-        this.originalEmail = email;
-        this.email = email;
-        if (this.config.common.lowercase) {
-            this.email = this.email.toLowerCase();
-        }
-        if (this.config.local.removePeriods) {
-            this.removePeriodsFromLocal();
-        }
-        if (this.config.local.removePlusTag) {
-            this.removePlusTag();
-        }
-        return this.email;
-    }
     removePeriodsFromLocal() {
         const atIndex = this.email.indexOf('@');
         if (atIndex !== -1) {
@@ -56,7 +42,31 @@ class EmailSanitizer {
             }
         }
     }
-    sanitizeGSuite() {
+    setEmailDetails(email) {
+        if (typeof email !== 'string') {
+            throw new Error(`Email not a string. ${email}`);
+        }
+        else if (!email) {
+            throw new Error(`Email not provided. ${email}`);
+        }
+        this.originalEmail = email;
+        this.email = email;
+    }
+    sanitize(email) {
+        this.setEmailDetails(email);
+        if (this.config.common.lowercase) {
+            this.email = this.email.toLowerCase();
+        }
+        if (this.config.local.removePeriods) {
+            this.removePeriodsFromLocal();
+        }
+        if (this.config.local.removePlusTag) {
+            this.removePlusTag();
+        }
+        return this.email;
+    }
+    sanitizeGSuite(email) {
+        this.setEmailDetails(email);
         this.removePeriodsFromLocal();
         this.removePlusTag();
     }
