@@ -1,6 +1,6 @@
 {
   "name": "@email-utils/sanitizer",
-  "version": "0.0.1-1",
+  "version": "0.0.1-2",
   "description": "Configurable email sanitizer.",
   "main": "dist/index.js",
   "scripts": {
