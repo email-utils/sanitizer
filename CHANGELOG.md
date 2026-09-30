@@ -1,0 +1,13 @@
+# Changelog
+
+## [1.0.0-rc.1](https://github.com/email-utils/sanitizer/compare/v1.0.0-rc.0...v1.0.0-rc.1) (2026-09-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* replace EmailSanitizer with normalizeEmail and provider rules ([#21](https://github.com/email-utils/sanitizer/issues/21))
+
+### Features
+
+* add the /fixtures corpus and previewSanitizerOptions ([#23](https://github.com/email-utils/sanitizer/issues/23)) ([f518d85](https://github.com/email-utils/sanitizer/commit/f518d85384f47ccd2fd3db2f8642b702a42b8f4a))
+* replace EmailSanitizer with normalizeEmail and provider rules ([#21](https://github.com/email-utils/sanitizer/issues/21)) ([559f709](https://github.com/email-utils/sanitizer/commit/559f70937cce2c259ea00d66d4f6fde8425b440f))
