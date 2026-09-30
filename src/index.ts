@@ -1,88 +1,85 @@
-import type { SanitizeConfig, SanitizeParam } from './types';
+/**
+ * What is the address's canonical form? Provider-aware normalization: one
+ * parse gives a uniqueness `key`, the `address` to email, and its SMTP
+ * `envelope`, with the key built from the classifier's provider registry.
+ *
+ * @packageDocumentation
+ */
+import type { ParsedAddress } from '@email-utils/validator-syntax';
+import { type NormalizedEmail, normalize } from './normalize';
+import { type NormalizeOptions, resolve, type Rules } from './options';
+import type { Result } from './result';
 
-class EmailSanitizer {
-  defaultConfig: SanitizeConfig = {
-    common: {
-      lowercase: true,
-    },
-    local: {
-      removePeriods: false,
-      removePlusTag: false,
-    },
-  };
-  config: SanitizeConfig = this.defaultConfig;
-  email = '';
-  originalEmail = '';
+export type { NormalizedEmail } from './normalize';
+export type { NormalizeOptions } from './options';
+export type { ReasonCode, Result } from './result';
 
-  constructor(configParam: SanitizeParam = {}) {
-    let key: keyof SanitizeParam;
+let defaults: Rules | undefined;
 
-    for (key in configParam) {
-      const configGroup = configParam[key];
-      Object.assign(this.config[key], configGroup);
-    }
-  }
-  private removePeriodsFromLocal() {
-    const atIndex = this.email.indexOf('@');
-    if (atIndex !== -1) {
-      const domain = this.email.slice(atIndex, this.email.length);
-      this.email = `${this.email
-        .substring(0, this.email.indexOf('@'))
-        .replace(/\./g, '')}${domain}`;
-    }
-  }
-  private removePlusTag() {
-    const atIndex = this.email.indexOf('@');
-    if (atIndex !== -1) {
-      const domain = this.email.slice(atIndex, this.email.length);
-
-      const plusIndex = this.email.indexOf('+');
-      if (plusIndex !== -1 && plusIndex < atIndex) {
-        this.email = `${this.email.substring(0, plusIndex)}${domain}`;
-      }
-    }
-  }
-  private setEmailDetails(email: string) {
-    if (typeof email !== 'string') {
-      throw new Error(`Email not a string. ${String(email)}`);
-    } else if (!email) {
-      throw new Error(`Email not provided. ${email}`);
-    }
-
-    this.originalEmail = email;
-    this.email = email;
-  }
-  public sanitize(email: string): string {
-    this.setEmailDetails(email);
-
-    if (this.config.common.lowercase) {
-      this.email = this.email.toLowerCase();
-    }
-
-    if (this.config.local.removePeriods) {
-      this.removePeriodsFromLocal();
-    }
-
-    if (this.config.local.removePlusTag) {
-      this.removePlusTag();
-    }
-
-    return this.email;
-  }
-  // 0.0.1 behavior: returns nothing, and strips dots that Google Workspace
-  // treats as significant. Replaced by `normalizeEmail` (sanitizer#7).
-  public sanitizeGSuite(email: string): void {
-    this.setEmailDetails(email);
-
-    this.removePeriodsFromLocal();
-    this.removePlusTag();
-  }
+/**
+ * Normalizes `email` into a uniqueness `key`, the `address` to email, and
+ * its comment-free `envelope`, all from one parse.
+ *
+ * @remarks
+ * `key` collapses every spelling that reaches the same mailbox, using the
+ * provider's rules for domain aliases, subdomain addressing, dots, hyphens,
+ * and subaddress tags; on a domain with no known provider, dots and tags are
+ * kept. `address` and `envelope` only trim the input and lowercase the
+ * domain. A string is trimmed and then parsed with the `syntax` options; a
+ * parsed address from validator-syntax's `parseAddress` is used as is.
+ *
+ * @example
+ * ```ts
+ * const result = normalizeEmail('Ada.Lovelace+news@GMAIL.com');
+ * if (result.ok) {
+ *   result.value.key; // 'adalovelace@gmail.com'
+ *   result.value.address; // 'Ada.Lovelace+news@gmail.com'
+ * } else {
+ *   result.reason; // 'sanitizer.address.unparsable'
+ * }
+ *
+ * // A custom domain's provider comes from its MX records.
+ * normalizeEmail('A.da+news@mycompany.com', { provider: 'google-workspace' });
+ * // key: 'a.da@mycompany.com'
+ * ```
+ *
+ * @throws TypeError when `email` is neither a string nor a parsed address,
+ * or `options` are malformed.
+ */
+export function normalizeEmail(
+  email: string | ParsedAddress,
+  options?: NormalizeOptions,
+): Result<NormalizedEmail> {
+  const rules =
+    options === undefined ? (defaults ??= resolve()) : resolve(options);
+  return normalize(email, rules);
 }
 
-export default EmailSanitizer;
-export type {
-  CommonSanitizeConfig,
-  LocalSanitizeConfig,
-  SanitizeConfig,
-  SanitizeParam,
-} from './types';
+/** {@link normalizeEmail} with options bound. */
+export interface Sanitizer {
+  normalize(email: string | ParsedAddress): Result<NormalizedEmail>;
+}
+
+/**
+ * Binds `options` once, checking them and looking up the `provider` up
+ * front, and returns {@link normalizeEmail} with them applied.
+ *
+ * @example
+ * ```ts
+ * const sanitize = createSanitizer({ syntax: { allowComments: true } });
+ * const result = sanitize.normalize('Ada.Lovelace+news(work)@googlemail.com');
+ * if (result.ok) {
+ *   result.value.key; // 'adalovelace@gmail.com'
+ *   result.value.address; // 'Ada.Lovelace+news(work)@googlemail.com'
+ *   result.value.envelope; // 'Ada.Lovelace+news@googlemail.com'
+ * }
+ * ```
+ *
+ * @throws TypeError when `options` are malformed.
+ */
+export function createSanitizer(options?: NormalizeOptions): Sanitizer {
+  const rules = resolve(options);
+  return {
+    normalize: (email) => normalize(email, rules),
+  };
+}
