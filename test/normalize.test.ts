@@ -89,10 +89,13 @@ describe('every form', () => {
 
   it('trims in linear time, whatever whitespace the input holds', () => {
     // A regex ending in `[ \t\r\n]+$` retries from every tab here, and took
-    // seconds; the result is the same either way.
+    // seconds; the result is the same either way. With no `maxLength`, so
+    // the input reaches the trim.
     const email = `a${'\t'.repeat(200_000)}b@example.com`;
     const start = performance.now();
-    expect(normalizeEmail(email)).toMatchObject({ ok: false });
+    expect(
+      normalizeEmail(email, { syntax: { maxLength: Infinity } }),
+    ).toMatchObject({ ok: false });
     expect(performance.now() - start).toBeLessThan(1000);
   });
 
@@ -111,6 +114,99 @@ describe('every form', () => {
       key: 'ada@[ipv6:2001:db8::1]',
       address: 'Ada@[ipv6:2001:db8::1]',
       envelope: 'Ada@[ipv6:2001:db8::1]',
+    });
+  });
+});
+
+/** The failure for input longer than `max`. */
+function tooLong(max: number) {
+  return {
+    ok: false,
+    reason: 'sanitizer.address.unparsable',
+    message: `The input is longer than ${max} characters`,
+  };
+}
+
+// Each padded input has spaces before it, `padStart`'s length in all.
+describe('`maxLength`', () => {
+  // A full-length address: a 64-character local part and a 189-character
+  // domain, 254 characters in all.
+  const long = `${'a'.repeat(64)}@${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(57)}.com`;
+
+  it('normalizes input exactly `maxLength` long, padding and all', () => {
+    expect(long).toHaveLength(254);
+    expect(normalized(long.padStart(512))).toMatchObject({ envelope: long });
+  });
+
+  it('fails on input one character over, before it is trimmed', () => {
+    // parseAddress takes it once trimmed; the padding carries it over.
+    expect(parseAddress(long).ok).toBe(true);
+    expect(normalizeEmail(long.padStart(513))).toEqual(tooLong(512));
+    expect(normalizeEmail(`${long}${' '.repeat(259)}`)).toEqual(tooLong(512));
+  });
+
+  it('counts every kind of surrounding whitespace', () => {
+    const email = `\r\n${'\t'.repeat(250)}ada@example.com${' '.repeat(250)}`;
+    expect(email).toHaveLength(517);
+    expect(normalizeEmail(email)).toEqual(tooLong(512));
+    expect(normalized(email.slice(5))).toMatchObject({
+      envelope: 'ada@example.com',
+    });
+  });
+
+  it('follows a lower `syntax.maxLength`', () => {
+    const options: NormalizeOptions = { syntax: { maxLength: 20 } };
+    expect(normalized('ada@example.com'.padStart(20), options)).toMatchObject({
+      envelope: 'ada@example.com',
+    });
+    expect(normalizeEmail('ada@example.com'.padStart(21), options)).toEqual(
+      tooLong(20),
+    );
+    expect(createSanitizer(options).normalize(' '.repeat(21))).toEqual(
+      tooLong(20),
+    );
+  });
+
+  it('follows a higher `syntax.maxLength`', () => {
+    const options: NormalizeOptions = { syntax: { maxLength: 1024 } };
+    expect(normalized(long.padStart(1024), options)).toMatchObject({
+      envelope: long,
+    });
+    expect(normalizeEmail(long.padStart(1025), options)).toEqual(tooLong(1024));
+  });
+
+  it('has no limit with `maxLength: Infinity`', () => {
+    const email = 'Ada@Example.com'.padStart(1_000_000);
+    expect(
+      normalizeEmail(email, { syntax: { maxLength: Infinity } }),
+    ).toMatchObject({ ok: true, value: { envelope: 'Ada@example.com' } });
+  });
+
+  it('applies to createSanitizer as to normalizeEmail', () => {
+    const cases: [NormalizeOptions | undefined, number][] = [
+      [undefined, 512],
+      [{ syntax: { maxLength: 300 } }, 300],
+    ];
+    for (const [options, max] of cases) {
+      const sanitize = createSanitizer(options);
+      for (const length of [299, 300, 301, 512, 513]) {
+        const email = long.padStart(length);
+        expect(sanitize.normalize(email)).toEqual(
+          normalizeEmail(email, options),
+        );
+        expect(sanitize.normalize(email).ok).toBe(length <= max);
+      }
+    }
+  });
+
+  it('does not apply to a parsed address, which parseAddress already bounded', () => {
+    const parts = {
+      local: 'a'.repeat(600),
+      domain: 'example.com',
+      comments: [],
+    };
+    expect(normalizeEmail(parts, { syntax: { maxLength: 20 } })).toMatchObject({
+      ok: true,
     });
   });
 });

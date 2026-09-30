@@ -210,8 +210,9 @@ function trimWhitespace(email: string): string {
 }
 
 /**
- * The parsed address `email` stands for, or a failure for a string the
- * syntax options reject or a parsed address with an empty half.
+ * The parsed address `email` stands for, or a failure for a string longer
+ * than the syntax options' `maxLength`, a string they reject, or a parsed
+ * address with an empty half.
  *
  * @throws TypeError when `email` is neither a string nor an object with
  * string `local` and `domain`.
@@ -221,6 +222,13 @@ function partsOf(
   rules: Rules,
 ): Result<ParsedAddress> {
   if (typeof email === 'string') {
+    // The length as given, before the trim: trimming costs time in
+    // proportion to the padding, so surrounding whitespace counts toward
+    // the limit, and oversized input is rejected in constant time.
+    const { maxLength } = rules.syntax;
+    if (email.length > maxLength) {
+      return unparsable(`The input is longer than ${maxLength} characters`);
+    }
     const parsed = rules.syntax.parse(trimWhitespace(email));
     return parsed.ok
       ? parsed

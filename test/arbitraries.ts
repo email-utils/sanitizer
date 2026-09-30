@@ -20,7 +20,8 @@ function of(chars: string, max: number): fc.Arbitrary<string> {
   });
 }
 
-type Flag = Exclude<keyof SyntaxOptions, 'preset'>;
+/** The boolean overrides. */
+type Flag = Exclude<keyof SyntaxOptions, 'preset' | 'maxLength'>;
 
 // What each preset's grammar has no room for: validator-syntax throws
 // TypeError when one of these is true.
@@ -33,7 +34,10 @@ const unsupported: Record<Preset, readonly Flag[]> = {
 
 const presets: readonly Preset[] = ['practical', 'rfc5321', 'rfc5322', 'html5'];
 
-/** Any `syntax` options validator-syntax accepts. */
+/**
+ * Any `syntax` options validator-syntax accepts, with the default
+ * `maxLength`; test/consistency.test.ts varies that.
+ */
 export const syntaxOptions: fc.Arbitrary<SyntaxOptions> = fc
   .record(
     {

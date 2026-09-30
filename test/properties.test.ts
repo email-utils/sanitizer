@@ -3,7 +3,10 @@
 // sanitizer has no `isX()` boolean, so there's no `isX() === x().ok` pair to
 // check; test/consistency.test.ts checks that it accepts exactly what
 // validator-syntax's `parseAddress` does instead.
-import type { AddressComment } from '@email-utils/validator-syntax';
+import {
+  type AddressComment,
+  createSyntaxValidator,
+} from '@email-utils/validator-syntax';
 import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
@@ -239,15 +242,24 @@ describe('documented equivalences', () => {
     );
   });
 
-  it('surrounding whitespace changes nothing', () => {
+  it('surrounding whitespace changes nothing, up to `maxLength`', () => {
+    const { maxLength } = createSyntaxValidator();
     fc.assert(
       fc.property(
         fc.oneof(providerAddress, anyAddress, anyString),
         fc.string({ unit: fc.constantFrom(' ', '\t', '\r', '\n') }),
         fc.string({ unit: fc.constantFrom(' ', '\t', '\r', '\n') }),
         (email, before, after) => {
-          expect(normalizeEmail(before + email + after)).toEqual(
-            normalizeEmail(email),
+          const padded = before + email + after;
+          // Past it, the input fails before it's trimmed.
+          expect(normalizeEmail(padded)).toEqual(
+            padded.length <= maxLength
+              ? normalizeEmail(email)
+              : {
+                  ok: false,
+                  reason: 'sanitizer.address.unparsable',
+                  message: `The input is longer than ${maxLength} characters`,
+                },
           );
         },
       ),
