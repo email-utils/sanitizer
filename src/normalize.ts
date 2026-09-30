@@ -17,7 +17,8 @@ import type { Result } from './result';
 export interface NormalizedEmail {
   /**
    * Uniqueness key: two inputs that reach the same mailbox get the same key.
-   * Store and compare it; never send mail to it.
+   * Store and compare it; never send mail to it. Normalizing it again, with
+   * the same options, gives it back.
    */
   key: string;
   /**
@@ -111,14 +112,38 @@ function withComments(
   );
 }
 
-/** The part of `domain` after its first label, when that's one of `provider`'s domains. */
+/**
+ * The part of `domain` after its first label, when that's one of
+ * `provider`'s domains and the label is an ASCII atom. A mailbox name is
+ * ASCII at every provider that addresses by subdomain, and an ASCII atom is
+ * a local part every preset parses.
+ */
 function parentDomain(
   domain: string,
   provider: ProviderInfo,
 ): string | undefined {
   const dot = domain.indexOf('.');
   const parent = domain.slice(dot + 1);
-  return dot > 0 && provider.domains.includes(parent) ? parent : undefined;
+  return dot > 0 &&
+    /^[\w!#$%&'*+/=?^`{|}~-]+$/.test(domain.slice(0, dot)) &&
+    provider.domains.includes(parent)
+    ? parent
+    : undefined;
+}
+
+/**
+ * `local` with the dots the provider rules left out of place collapsed and
+ * trimmed, so the key stays a dot-atom: `a.+tag` loses its tag as `a`, not
+ * `a.`. `before`, the local part the rules started from, stands in when
+ * nothing would be left, and when the rules changed nothing: html5 takes
+ * `a..b`, and it's then already a key that normalizes to itself.
+ */
+function tidyDots(local: string, before: string): string {
+  if (local === before) {
+    return local;
+  }
+  const tidied = local.replace(/\.{2,}/g, '.').replace(/^\.|\.$/g, '');
+  return tidied === '' ? before : tidied;
 }
 
 /** The uniqueness key, with the rows the API page marks "provider-rule". */
@@ -145,6 +170,7 @@ function toKey(
     }
   }
   if (localRules) {
+    const before = local;
     const separator = known?.subaddressSeparator ?? rules.subaddressSeparator;
     if (rules.removeSubaddress ?? known?.subaddressSeparator !== undefined) {
       // The tag starts at the first separator, unless nothing comes before it.
@@ -159,8 +185,18 @@ function toKey(
     if (rules.removePeriods ?? known?.dotsSignificant === false) {
       local = local.replaceAll('.', '');
     }
+    local = tidyDots(local, before);
   }
   return `${local}@${domain}`;
+}
+
+/**
+ * `email` without the space, tab, CR, and LF around it: the whitespace
+ * validator-syntax knows. `trim()` would also take Unicode spaces, such as
+ * U+00A0, that an RFC 6531 local part may start or end with.
+ */
+function trimWhitespace(email: string): string {
+  return email.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
 }
 
 /**
@@ -175,7 +211,7 @@ function partsOf(
   rules: Rules,
 ): Result<ParsedAddress> {
   if (typeof email === 'string') {
-    const parsed = rules.syntax.parse(email.trim());
+    const parsed = rules.syntax.parse(trimWhitespace(email));
     return parsed.ok
       ? parsed
       : unparsable(parsed.message ?? `Rejected as ${parsed.reason}`);

@@ -152,8 +152,6 @@ describe('normalizing again', () => {
           const first = normalizeEmail(email, options);
           fc.pre(first.ok);
           const { envelope } = first.value;
-          // An envelope `trim()` shortens is a known gap below.
-          fc.pre(envelope.trim() === envelope);
           expect(normalizeEmail(envelope, options)).toEqual({
             ok: true,
             value: { ...first.value, address: envelope },
@@ -163,86 +161,58 @@ describe('normalizing again', () => {
     );
   });
 
-  it('the key gives the same key, wherever it’s an address the options parse', () => {
+  it('the key gives the same key, at every provider and override', () => {
     fc.assert(
       fc.property(providerAddress, keyOptions, (email, options) => {
-        const { key } = normalized(email, options);
-        const again = normalizeEmail(key, options);
-        // The keys that don't parse are the known gap below; skipping them
-        // here keeps this checking every other key.
-        fc.pre(again.ok);
-        expect(again.value.key).toBe(key);
+        const [key, again] = keyedTwice(email, options);
+        expect(again).toMatchObject({ ok: true, value: { key } });
       }),
     );
   });
 
-  it('the key gives the same key, for any input whose key parses untrimmed', () => {
+  it('the key gives the same key, for any input that normalizes', () => {
     fc.assert(
       fc.property(anyAddress, normalizeOptions, (email, options) => {
         const first = normalizeEmail(email, options);
         fc.pre(first.ok);
         const { key } = first.value;
-        const again = normalizeEmail(key, options);
-        // Both the unparsable keys and the keys `trim()` shortens are the
-        // known gaps below.
-        fc.pre(again.ok && key.trim() === key);
-        expect(again.value.key).toBe(key);
+        expect(normalizeEmail(key, options)).toMatchObject({
+          ok: true,
+          value: { key },
+        });
       }),
     );
   });
 });
 
-// Known gaps: the key, and the envelope after a comment, aren't always an
-// address the same options parse, so normalizing them again fails, or trims
-// them to another address. The docs say the key is for identity, not
-// delivery, and don't promise it parses. These fail today; `it.fails` turns
-// red once they're fixed, and the properties above can then drop their skips.
-describe('normalizing again (known gaps)', () => {
-  it.fails(
-    'a Yandex hyphen with dots removed leaves an empty local part',
-    () => {
-      // -@yandex.ru keys as @yandex.ru with `removePeriods: true`.
-      const options: NormalizeOptions = { removePeriods: true };
-      const [key, again] = keyedTwice('-@yandex.ru', options);
-      expect(again).toMatchObject({ ok: true, value: { key } });
-    },
-  );
-
-  it.fails('a Yandex hyphen at the end becomes a trailing dot', () => {
-    // -@yandex.ru keys as .@yandex.ru, which doesn't parse.
-    const [key, again] = keyedTwice('-@yandex.ru');
+// Inputs whose key or envelope once failed to normalize again, or trimmed
+// to another address (sanitizer#24). The properties above can take them,
+// but these pin them.
+describe('normalizing again, where it once changed the form', () => {
+  it.each<[string, string, NormalizeOptions?]>([
+    [
+      'a Yandex hyphen with dots removed',
+      '-@yandex.ru',
+      { removePeriods: true },
+    ],
+    ['a Yandex hyphen at the end', '-@yandex.ru'],
+    ['a tag after a dot', 'a.+@outlook.com'],
+    [
+      'a Fastmail IDN subdomain',
+      'x@ü.fastmail.com',
+      { syntax: { allowIdn: true } },
+    ],
+    [
+      'quotes around Unicode whitespace',
+      '"\u00a0a"@example.com',
+      { syntax: { preset: 'rfc5321', allowUnicode: true } },
+    ],
+  ])('the key gives the same key for %s', (_, email, options) => {
+    const [key, again] = keyedTwice(email, options);
     expect(again).toMatchObject({ ok: true, value: { key } });
   });
 
-  it.fails('a tag after a dot leaves a trailing dot', () => {
-    // a.+@outlook.com keys as a.@outlook.com, which doesn't parse.
-    const [key, again] = keyedTwice('a.+@outlook.com');
-    expect(again).toMatchObject({ ok: true, value: { key } });
-  });
-
-  it.fails('a Fastmail IDN subdomain becomes a non-ASCII local part', () => {
-    // x@ü.fastmail.com keys as ü@fastmail.com, which needs allowUnicode.
-    const options: NormalizeOptions = { syntax: { allowIdn: true } };
-    const [key, again] = keyedTwice('x@ü.fastmail.com', options);
-    expect(again).toMatchObject({ ok: true, value: { key } });
-  });
-
-  it.fails(
-    'quotes dropped from Unicode whitespace leave it for `trim()`',
-    () => {
-      // "\u00a0a"@example.com keys as \u00a0a@example.com, which trims to a
-      // different key.
-      const options: NormalizeOptions = {
-        syntax: { preset: 'rfc5321', allowUnicode: true },
-      };
-      const [key, again] = keyedTwice('"\u00a0a"@example.com', options);
-      expect(again).toMatchObject({ ok: true, value: { key } });
-    },
-  );
-
-  it.fails('a comment before Unicode whitespace leaves it for `trim()`', () => {
-    // (c)\u00a0a@example.com has the envelope \u00a0a@example.com, which
-    // trims to a different envelope and key.
+  it('the envelope after a comment keeps its Unicode whitespace', () => {
     const options: NormalizeOptions = {
       syntax: { allowComments: true, allowUnicode: true },
     };

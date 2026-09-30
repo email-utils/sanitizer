@@ -24,9 +24,11 @@ let defaults: Rules | undefined;
  * `key` collapses every spelling that reaches the same mailbox, using the
  * provider's rules for domain aliases, subdomain addressing, dots, hyphens,
  * and subaddress tags; on a domain with no known provider, dots and tags are
- * kept. `address` and `envelope` only trim the input and lowercase the
- * domain. A string is trimmed and then parsed with the `syntax` options; a
- * parsed address from validator-syntax's `parseAddress` is used as is.
+ * kept. `key` is itself an address the same options parse, and normalizes to
+ * itself. `address` and `envelope` only trim the input and lowercase the
+ * domain. A string is trimmed of spaces, tabs, CRs, and LFs and then parsed
+ * with the `syntax` options; a parsed address from validator-syntax's
+ * `parseAddress` is used as is.
  *
  * @example
  * ```ts
