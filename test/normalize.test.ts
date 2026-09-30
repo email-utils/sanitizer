@@ -100,9 +100,9 @@ describe('every form', () => {
     const unicode: NormalizeOptions = {
       syntax: { allowComments: true, allowUnicode: true },
     };
-    expect(normalized('(c) a@example.com', unicode)).toMatchObject({
-      key: ' a@example.com',
-      envelope: ' a@example.com',
+    expect(normalized('(c)\u00a0a@example.com', unicode)).toMatchObject({
+      key: '\u00a0a@example.com',
+      envelope: '\u00a0a@example.com',
     });
   });
 
@@ -170,7 +170,7 @@ describe('quoted local parts', () => {
     const options: NormalizeOptions = {
       syntax: { preset: 'rfc5321', allowUnicode: true },
     };
-    expect(key('" a"@example.com', options)).toBe(' a@example.com');
+    expect(key('"\u00a0a"@example.com', options)).toBe('\u00a0a@example.com');
   });
 
   it('applies provider rules once the quotes are gone', () => {
