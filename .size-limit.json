@@ -1,0 +1,12 @@
+[
+  {
+    "name": "@email-utils/sanitizer",
+    "path": "dist/index.mjs",
+    "limit": "11.5 kB"
+  },
+  {
+    "name": "@email-utils/sanitizer/fixtures",
+    "path": "dist/fixtures.mjs",
+    "limit": "13 kB"
+  }
+]
