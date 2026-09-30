@@ -48,13 +48,14 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "bench": "vitest bench --run",
-    "check:package": "publint && attw --pack . --profile node16",
+    "bench": "npm run build && vitest bench --run",
+    "check:package": "publint && attw --pack . --profile node16 && size-limit && node scripts/import-cost.ts",
     "pre-commit": "npm run lint && npm run format:check && npm run typecheck",
     "prepack": "npm run build"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
+    "@size-limit/preset-small-lib": "^14.1.0",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^5.0.2",
     "fast-check": "^4.10.2",
@@ -63,6 +64,8 @@
     "oxlint-tsgolint": "^7.0.2003",
     "prettier": "^3.9.9",
     "publint": "^0.3.24",
+    "sanitizer-0.0.1": "npm:@email-utils/sanitizer@0.0.1-2",
+    "size-limit": "^14.1.0",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
