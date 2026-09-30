@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-rc.2](https://github.com/email-utils/sanitizer/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* make the key normalize to itself ([#26](https://github.com/email-utils/sanitizer/issues/26)) ([da4fa0f](https://github.com/email-utils/sanitizer/commit/da4fa0fa83b2490a450b5593db9af093901e6f62))
+
 ## [1.0.0-rc.1](https://github.com/email-utils/sanitizer/compare/v1.0.0-rc.0...v1.0.0-rc.1) (2026-09-30)
 
 
