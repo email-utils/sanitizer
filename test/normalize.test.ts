@@ -87,6 +87,15 @@ describe('every form', () => {
     });
   });
 
+  it('trims in linear time, whatever whitespace the input holds', () => {
+    // A regex ending in `[ \t\r\n]+$` retries from every tab here, and took
+    // seconds; the result is the same either way.
+    const email = `a${'\t'.repeat(200_000)}b@example.com`;
+    const start = performance.now();
+    expect(normalizeEmail(email)).toMatchObject({ ok: false });
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
   it('keeps Unicode whitespace, which an RFC 6531 local part may hold', () => {
     const unicode: NormalizeOptions = {
       syntax: { allowComments: true, allowUnicode: true },

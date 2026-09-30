@@ -193,10 +193,20 @@ function toKey(
 /**
  * `email` without the space, tab, CR, and LF around it: the whitespace
  * validator-syntax knows. `trim()` would also take Unicode spaces, such as
- * U+00A0, that an RFC 6531 local part may start or end with.
+ * U+00A0, that an RFC 6531 local part may start or end with. It scans from
+ * each end rather than matching `[ \t\r\n]+$`, which retries from every
+ * position and turns quadratic on a long run of whitespace.
  */
 function trimWhitespace(email: string): string {
-  return email.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+  let start = 0;
+  let end = email.length;
+  while (start < end && ' \t\r\n'.includes(email.charAt(start))) {
+    start++;
+  }
+  while (end > start && ' \t\r\n'.includes(email.charAt(end - 1))) {
+    end--;
+  }
+  return email.slice(start, end);
 }
 
 /**
