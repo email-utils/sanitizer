@@ -32,17 +32,24 @@ let defaults: Rules | undefined;
  *
  * @example
  * ```ts
- * const result = normalizeEmail('Ada.Lovelace+news@GMAIL.com');
- * if (result.ok) {
- *   result.value.key; // 'adalovelace@gmail.com'
- *   result.value.address; // 'Ada.Lovelace+news@gmail.com'
- * } else {
- *   result.reason; // 'sanitizer.address.unparsable'
- * }
+ * import { normalizeEmail } from '@email-utils/sanitizer';
+ *
+ * normalizeEmail('Ada.Lovelace+news@GMAIL.com');
+ * // => {
+ * //   ok: true,
+ * //   value: {
+ * //     key: 'adalovelace@gmail.com',
+ * //     address: 'Ada.Lovelace+news@gmail.com',
+ * //     provider: 'gmail',
+ * //   },
+ * // }
+ *
+ * normalizeEmail('ada@');
+ * // => { ok: false, reason: 'sanitizer.address.unparsable' }
  *
  * // A custom domain's provider comes from its MX records.
- * normalizeEmail('A.da+news@mycompany.com', { provider: 'google-workspace' });
- * // key: 'a.da@mycompany.com'
+ * normalizeEmail('A.da+news@example.com', { provider: 'google-workspace' });
+ * // => { ok: true, value: { key: 'a.da@example.com' } }
  * ```
  *
  * @throws TypeError when `email` is neither a string nor a parsed address,
@@ -68,13 +75,21 @@ export interface Sanitizer {
  *
  * @example
  * ```ts
+ * import { createSanitizer } from '@email-utils/sanitizer';
+ *
  * const sanitize = createSanitizer({ syntax: { allowComments: true } });
- * const result = sanitize.normalize('Ada.Lovelace+news(work)@googlemail.com');
- * if (result.ok) {
- *   result.value.key; // 'adalovelace@gmail.com'
- *   result.value.address; // 'Ada.Lovelace+news(work)@googlemail.com'
- *   result.value.envelope; // 'Ada.Lovelace+news@googlemail.com'
- * }
+ * sanitize.normalize('Ada.Lovelace+news(work)@googlemail.com');
+ * // => {
+ * //   ok: true,
+ * //   value: {
+ * //     key: 'adalovelace@gmail.com',
+ * //     address: 'Ada.Lovelace+news(work)@googlemail.com',
+ * //     envelope: 'Ada.Lovelace+news@googlemail.com',
+ * //   },
+ * // }
+ *
+ * // Malformed options throw here, not on every call.
+ * createSanitizer({ subaddressSeparator: '--' }); // => throws TypeError
  * ```
  *
  * @throws TypeError when `options` are malformed.

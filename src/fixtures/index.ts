@@ -60,14 +60,34 @@ export interface SanitizerPreview {
  *
  * @example
  * ```ts
- * previewSanitizerOptions({ provider: 'google-workspace' }, [
- *   'A.da+news@mycompany.com',
- * ]).valid;
- * // [{ input: 'A.da+news@mycompany.com', key: 'a.da@mycompany.com', …, changed: true }]
+ * import { previewSanitizerOptions } from '@email-utils/sanitizer/fixtures';
  *
- * previewSanitizerOptions({ syntax: { allowComments: true } }).valid.filter(
- *   (entry) => entry.changed,
- * ); // the comment fixtures, now normalized
+ * previewSanitizerOptions({ provider: 'google-workspace' }, [
+ *   'A.da+news@example.com',
+ *   'ada@',
+ * ]);
+ * // => {
+ * //   valid: [
+ * //     {
+ * //       input: 'A.da+news@example.com',
+ * //       key: 'a.da@example.com',
+ * //       changed: true,
+ * //     },
+ * //   ],
+ * //   invalid: [
+ * //     {
+ * //       input: 'ada@',
+ * //       reason: 'sanitizer.address.unparsable',
+ * //       changed: false,
+ * //     },
+ * //   ],
+ * // }
+ *
+ * // With no addresses, it previews the corpus: the comment fixtures now pass.
+ * previewSanitizerOptions({ syntax: { allowComments: true } })
+ *   .valid.filter((entry) => entry.changed)
+ *   .map((entry) => entry.input);
+ * // => ['Ada(work)@gmail.com', '(home)ada@(mx)example.com']
  * ```
  *
  * @param addresses - The inputs to normalize; the corpus's by default.
