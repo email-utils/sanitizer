@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-rc.3](https://github.com/email-utils/sanitizer/compare/v1.0.0-rc.2...v1.0.0-rc.3) (2026-09-30)
+
+
+### Bug Fixes
+
+* reject oversized input before trimming ([#31](https://github.com/email-utils/sanitizer/issues/31)) ([0691917](https://github.com/email-utils/sanitizer/commit/069191741cefa18caf686fdbb17a932bacadd162))
+
 ## [1.0.0-rc.2](https://github.com/email-utils/sanitizer/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2026-09-30)
 
 
