@@ -16,6 +16,10 @@ export type SanitizerExpected =
     }
   | { ok: false; reason: ReasonCode };
 
+/**
+ * One corpus input, what the default options give for it, and, when its
+ * feature needs an option, what that option gives.
+ */
 export interface SanitizerFixture {
   /** The string passed to `normalizeEmail`, surrounding whitespace and all. */
   input: string;

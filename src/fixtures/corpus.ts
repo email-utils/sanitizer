@@ -21,6 +21,31 @@ function forms(
     : { ok: true, key, address, envelope, provider };
 }
 
+/**
+ * The sanitizer corpus: one fixture per normalization rule, and the ways an
+ * input fails to parse, in that order.
+ *
+ * @remarks
+ * Run each fixture's `input` through your own keying and compare it with
+ * `expected`, or with `with.expected` under `with.options`, to check it keys
+ * addresses exactly as `normalizeEmail` does.
+ *
+ * @example
+ * ```ts
+ * import { sanitizerFixtures } from '@email-utils/sanitizer/fixtures';
+ *
+ * const fixture = sanitizerFixtures.find(
+ *   ({ input }) => input === 'Ada(work)@gmail.com',
+ * );
+ * fixture?.expected;
+ * // => { ok: false, reason: 'sanitizer.address.unparsable' }
+ * fixture?.with;
+ * // => {
+ * //   options: { syntax: { allowComments: true } },
+ * //   expected: { ok: true, key: 'ada@gmail.com', envelope: 'Ada@gmail.com' },
+ * // }
+ * ```
+ */
 export const sanitizerFixtures: readonly SanitizerFixture[] = [
   // Trimming and case.
   {
