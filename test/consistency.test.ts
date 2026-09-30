@@ -3,6 +3,7 @@
 // parts, so each must split exactly where `parseAddress` does, `@`, `.`, and
 // `+` inside quotes and comments included.
 import {
+  createSyntaxValidator,
   type ParsedAddress,
   parseAddress,
   type SyntaxOptions,
@@ -81,15 +82,38 @@ describe('splits where parseAddress does', () => {
   });
 });
 
+// Surrounding whitespace, sometimes enough to carry an address past the
+// default `maxLength`.
+const padding = fc.oneof(
+  fc.string({ unit: fc.constantFrom(' ', '\t', '\r', '\n'), maxLength: 8 }),
+  fc.nat(600).map((n) => ' '.repeat(n)),
+);
+
+// `maxLength` from well under an address to past the default, or none.
+const maxLength = fc.option(
+  fc.oneof(fc.integer({ min: 1, max: 600 }), fc.constant(Infinity)),
+  { nil: undefined },
+);
+
 describe('agrees with parseAddress on generated input', () => {
-  it('accepts exactly what parseAddress accepts, after trimming', () => {
+  it('accepts exactly what parseAddress accepts, after trimming, up to `maxLength`', () => {
     fc.assert(
       fc.property(
         fc.oneof(providerAddress, anyAddress, anyString),
+        padding,
+        padding,
         syntaxOptions,
-        (email, syntax) => {
+        maxLength,
+        (address, before, after, options, max) => {
+          const email = before + address + after;
+          const syntax =
+            max === undefined ? options : { ...options, maxLength: max };
+          // The sanitizer checks `maxLength` before it trims, so padding
+          // counts toward it, and input past it fails even when
+          // parseAddress takes it trimmed.
+          const fits = email.length <= createSyntaxValidator(syntax).maxLength;
           expect(normalizeEmail(email, { syntax }).ok).toBe(
-            parseAddress(trimmed(email), syntax).ok,
+            fits && parseAddress(trimmed(email), syntax).ok,
           );
         },
       ),

@@ -28,7 +28,9 @@ let defaults: Rules | undefined;
  * itself. `address` and `envelope` only trim the input and lowercase the
  * domain. A string is trimmed of spaces, tabs, CRs, and LFs and then parsed
  * with the `syntax` options; a parsed address from validator-syntax's
- * `parseAddress` is used as is.
+ * `parseAddress` is used as is. A string longer than the `syntax` options'
+ * `maxLength` (512 by default) fails before it's trimmed, so surrounding
+ * whitespace counts toward it.
  *
  * @example
  * ```ts
@@ -45,6 +47,10 @@ let defaults: Rules | undefined;
  * // }
  *
  * normalizeEmail('ada@');
+ * // => { ok: false, reason: 'sanitizer.address.unparsable' }
+ *
+ * // Surrounding whitespace counts toward the 512-character `maxLength`.
+ * normalizeEmail(`${' '.repeat(500)}ada@example.com`);
  * // => { ok: false, reason: 'sanitizer.address.unparsable' }
  *
  * // A custom domain's provider comes from its MX records.
@@ -72,6 +78,11 @@ export interface Sanitizer {
 /**
  * Binds `options` once, checking them and looking up the `provider` up
  * front, and returns {@link normalizeEmail} with them applied.
+ *
+ * @remarks
+ * As with {@link normalizeEmail}, a string longer than the `syntax`
+ * options' `maxLength` (512 by default) fails before it's trimmed, so
+ * surrounding whitespace counts toward it.
  *
  * @example
  * ```ts

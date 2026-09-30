@@ -6,11 +6,12 @@
 // `npm run test:coverage` alike.
 //
 // Each time is the average over a batch of calls, best of several batches,
-// so a shared runner or a GC pause doesn't count against the budget.
+// so a shared runner or a GC pause doesn't count against the budget. What's
+// timed is warmed up first, as a long-running service would be.
 import { registerHooks } from 'node:module';
 import { parentPort, workerData } from 'node:worker_threads';
 import type { Arbitrary } from 'fast-check';
-import type { NormalizeOptions } from '../src';
+import type { NormalizedEmail, NormalizeOptions, Result } from '../src';
 
 // src imports its own files without extensions, as the bundler resolves
 // them; Node needs the `.ts`. The hook has to be registered before src is
@@ -31,13 +32,17 @@ registerHooks({
 });
 
 const fc = await import('fast-check');
-const { normalizeEmail } = await import('../src/index.ts');
+const { createSyntaxValidator } = await import('@email-utils/validator-syntax');
+const { createSanitizer, normalizeEmail } = await import('../src/index.ts');
 const { anyAddress, anyString, normalizeOptions } =
   await import('./arbitraries.ts');
 
 /** What the worker measured, in nanoseconds per call. */
 export interface Report {
-  /** Each oversized shape: whether every size was rejected, and its times. */
+  /**
+   * Each oversized shape, through each function: whether every size was
+   * rejected for its length, before it was read, and its times.
+   */
   oversized: {
     name: string;
     rejected: boolean;
@@ -74,30 +79,46 @@ function perCall(fn: () => unknown, calls: number, batches: number): number {
   return best * 1e6;
 }
 
-/** How many calls of `run` take at least `ms` milliseconds. */
-function calibrate(run: () => unknown, ms: number): number {
-  for (let calls = 1; ; calls *= 2) {
-    const start = performance.now();
-    for (let call = 0; call < calls; call++) {
-      run();
-    }
-    if (performance.now() - start >= ms) {
-      return calls;
+/**
+ * Calls `fn` until the engine has compiled it: `calls` times, since V8
+ * optimizes code by how often it runs, not for how long, so a slow runner
+ * needs as many calls as a fast one. A call so costly that `ms` pass first
+ * has run its own loops often enough by then.
+ */
+function warmUp(fn: () => unknown, calls = 5000, ms = 100): void {
+  const start = performance.now();
+  for (let call = 0; call < calls; call++) {
+    fn();
+    if (performance.now() - start > ms) {
+      return;
     }
   }
 }
 
 /**
+ * How many calls of `fn` fill about `ms`, so cheap and costly calls are
+ * timed alike. Warm `fn` up first: this doesn't make enough calls to.
+ */
+function callsIn(fn: () => unknown, ms: number): number {
+  let calls = 0;
+  const start = performance.now();
+  while (performance.now() - start < ms) {
+    fn();
+    calls++;
+  }
+  return calls;
+}
+
+/**
  * Nanoseconds per call of each of `runs`, the best of `batches` batches of
- * about `ms` milliseconds each. The runs take turns, so a slow patch on the
- * runner lands on all of them rather than on one.
+ * `calls[r]` calls each. The runs take turns, so a slow patch on the runner
+ * lands on all of them rather than on one.
  */
 function nsPerCall(
   runs: readonly (() => unknown)[],
   batches: number,
-  ms: number,
+  calls: readonly number[],
 ): number[] {
-  const calls = runs.map((run) => calibrate(run, ms));
   const best = runs.map(() => Infinity);
   for (let batch = 0; batch < batches; batch++) {
     runs.forEach((run, r) => {
@@ -120,20 +141,81 @@ function isLinear(times: readonly number[]): boolean {
   return times.every((ns, i) => i === 0 || ns / (times[i - 1] ?? 0) <= 2.5);
 }
 
-// Past validator-syntax's caps: 64 characters in the local part, 253 in the
-// domain, and 254 in all. From just over the cap to 4 MB.
+/** `unit` repeated between `prefix` and `suffix`, to about `size` characters. */
+function fill(prefix: string, unit: string, suffix: string, size: number) {
+  const units = Math.floor(
+    (size - prefix.length - suffix.length) / unit.length,
+  );
+  return prefix + unit.repeat(Math.max(units, 0)) + suffix;
+}
+
+// The syntax validator's default `maxLength`: longer input is rejected
+// before it's trimmed or read.
+const { maxLength } = createSyntaxValidator();
+
+// Past `maxLength`, from just over it to 4 MB. The padded address is valid
+// once trimmed, so only the length rejects it.
+const oversizes = [maxLength + 1, 1024, 65_536, 1_048_576, 4_194_304];
 const oversized: readonly [string, (n: number) => string][] = [
-  ['a long local part', (n) => `${'a'.repeat(n)}@example.com`],
-  ['a long domain', (n) => `ada@${'a'.repeat(n)}.com`],
+  ['a long local part', (n) => fill('', 'a', '@example.com', n)],
+  ['a long domain', (n) => fill('ada@', 'a', '.com', n)],
   ['no @', (n) => 'a'.repeat(n)],
-  ['a Gmail local part of dots', (n) => `${'a.'.repeat(n / 2)}a@gmail.com`],
+  ['a Gmail local part of dots', (n) => fill('', 'a.', 'a@gmail.com', n)],
+  [
+    'an address in whitespace',
+    (n) => fill('', ' ', 'ada@example.com'.padEnd(Math.ceil((n + 15) / 2)), n),
+  ],
 ];
-const oversizes = [256, 1024, 65_536, 1_048_576, 4_194_304];
+
+const sanitize = createSanitizer();
+const functions: readonly [
+  string,
+  (email: string) => Result<NormalizedEmail>,
+][] = [
+  ['normalizeEmail', (email) => normalizeEmail(email)],
+  // Options are resolved on every call that passes them.
+  [
+    'normalizeEmail with options',
+    (email) => normalizeEmail(email, { syntax: { allowComments: true } }),
+  ],
+  ['createSanitizer().normalize', (email) => sanitize.normalize(email)],
+];
+
+/** Whether `result` is a rejection for the input's length, before it was read. */
+function tooLong(result: Result<NormalizedEmail>): boolean {
+  return (
+    !result.ok &&
+    result.message === `The input is longer than ${maxLength} characters`
+  );
+}
+
+function timeOversized(): Report['oversized'] {
+  const runs = oversized.flatMap(([shape, make]) => {
+    const emails = oversizes.map(make);
+    return functions.map(([name, fn]) => ({ shape, emails, name, fn }));
+  });
+  // Everything is warmed up before anything is timed, so the first function
+  // timed isn't timed before the engine has compiled the code they share.
+  for (const { emails, fn } of runs) {
+    for (const email of emails) {
+      warmUp(() => fn(email));
+    }
+  }
+  return runs.map(({ shape, emails, name, fn }) => ({
+    name: `${name} with ${shape}`,
+    rejected: emails.every((email) => tooLong(fn(email))),
+    times: emails.map((email) => {
+      const call = () => fn(email);
+      return { size: email.length, ns: perCall(call, callsIn(call, 1), 7) };
+    }),
+  }));
+}
 
 // Worst cases for the key and the forms, each built from a varying part `n`
 // characters long that doubles up to the caps; a last step that would pass
-// a cap stops at it. Comments don't count toward the caps, so they go
-// further.
+// a cap stops at it. Comments don't count toward the 254-character address
+// cap, so they go further, to just under `maxLength`, which they count
+// toward.
 const linear: readonly [
   string,
   (n: number) => string,
@@ -163,13 +245,13 @@ const linear: readonly [
   [
     'many comments',
     (n) => `ada${'(c)'.repeat(n / 3)}@gmail.com`,
-    [48, 96, 192, 384, 768],
+    [60, 120, 240, 480],
     { syntax: { allowComments: true } },
   ],
   [
     'nested comments',
     (n) => `${'('.repeat(n / 2)}${')'.repeat(n / 2)}ada@gmail.com`,
-    [32, 64, 128, 256, 512],
+    [30, 60, 120, 240, 480],
     { syntax: { allowComments: true } },
   ],
   [
@@ -179,6 +261,42 @@ const linear: readonly [
     { syntax: { preset: 'rfc5321' } },
   ],
 ];
+
+function timeLinear(): Report['linear'] {
+  const shapes = linear.map(([name, shape, sizes, options]) => {
+    const emails = sizes.map(shape);
+    return {
+      name,
+      sizes,
+      options,
+      emails,
+      runs: emails.map((email) => () => normalizeEmail(email, options)),
+    };
+  });
+  // Every shape at every size is warmed up before any is timed.
+  for (const { runs } of shapes) {
+    for (const run of runs) {
+      warmUp(run);
+    }
+  }
+  return shapes.map(({ name, sizes, options, emails, runs }) => {
+    const calls = runs.map((run) => callsIn(run, 1));
+    // A series with a step over 2.5 is measured again, twice at most,
+    // keeping each size's best: a slow patch on the runner can't hold up a
+    // linear shape three times running, and a quadratic one is over every
+    // time.
+    let times = nsPerCall(runs, 9, calls);
+    for (let retry = 0; retry < 2 && !isLinear(times); retry++) {
+      const again = nsPerCall(runs, 9, calls);
+      times = times.map((ns, r) => Math.min(ns, again[r] ?? Infinity));
+    }
+    return {
+      name,
+      normalized: emails.every((email) => normalizeEmail(email, options).ok),
+      times: sizes.map((size, i) => ({ size, ns: times[i] ?? Infinity })),
+    };
+  });
+}
 
 // Runs of the characters that steer the parser and the key.
 const tokens = fc
@@ -193,11 +311,6 @@ const tokens = fc
   )
   .map((parts) => parts.join(''));
 
-// The input cap validator-syntax's coming `maxLength` option defaults to.
-// Anything longer is oversized input, which has its own, tighter budget
-// above; these are cut to it.
-const cap = 512;
-
 const arbitraries: readonly [string, Arbitrary<string>][] = [
   ['any string', anyString],
   ['address-shaped strings', anyAddress],
@@ -205,44 +318,12 @@ const arbitraries: readonly [string, Arbitrary<string>][] = [
 ];
 const adversarial = arbitraries.map(
   ([name, arbitrary]) =>
-    [name, arbitrary.map((email) => email.slice(0, cap))] as const,
+    [name, arbitrary.map((email) => email.slice(0, maxLength))] as const,
 );
 
 const report: Report = {
-  oversized: oversized.map(([name, shape]) => {
-    const emails = oversizes.map(shape);
-    return {
-      name,
-      rejected: emails.every((email) => !normalizeEmail(email).ok),
-      times: emails.map((email, i) => ({
-        size: oversizes[i] ?? 0,
-        ns: perCall(
-          () => normalizeEmail(email),
-          Math.ceil(65_536 / email.length),
-          5,
-        ),
-      })),
-    };
-  }),
-
-  linear: linear.map(([name, shape, sizes, options]) => {
-    const emails = sizes.map(shape);
-    const runs = emails.map((email) => () => normalizeEmail(email, options));
-    // A series with a step over 2.5 is measured again, twice at most,
-    // keeping each size's best: a slow patch on the runner can't hold up a
-    // linear shape three times running, and a quadratic one is over every
-    // time.
-    let times = nsPerCall(runs, 9, 1);
-    for (let retry = 0; retry < 2 && !isLinear(times); retry++) {
-      const again = nsPerCall(runs, 9, 1);
-      times = times.map((ns, r) => Math.min(ns, again[r] ?? Infinity));
-    }
-    return {
-      name,
-      normalized: emails.every((email) => normalizeEmail(email, options).ok),
-      times: sizes.map((size, i) => ({ size, ns: times[i] ?? Infinity })),
-    };
-  }),
+  oversized: timeOversized(),
+  linear: timeLinear(),
 
   adversarial: adversarial.map(([name, arbitrary]) => {
     const samples = fc.sample(
