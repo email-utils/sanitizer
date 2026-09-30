@@ -20,6 +20,11 @@ import {
   syntaxOptions,
 } from './arbitraries';
 
+/** `email` trimmed as normalizeEmail trims it: of spaces, tabs, CRs, and LFs. */
+function trimmed(email: string): string {
+  return email.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+}
+
 function parsed(email: string, syntax?: SyntaxOptions): ParsedAddress {
   const result = parseAddress(email, syntax);
   if (!result.ok) {
@@ -84,7 +89,7 @@ describe('agrees with parseAddress on generated input', () => {
         syntaxOptions,
         (email, syntax) => {
           expect(normalizeEmail(email, { syntax }).ok).toBe(
-            parseAddress(email.trim(), syntax).ok,
+            parseAddress(trimmed(email), syntax).ok,
           );
         },
       ),
@@ -97,7 +102,7 @@ describe('agrees with parseAddress on generated input', () => {
         fc.oneof(providerAddress, anyAddress),
         syntaxOptions,
         (email, syntax) => {
-          const parts = parseAddress(email.trim(), syntax);
+          const parts = parseAddress(trimmed(email), syntax);
           fc.pre(parts.ok);
           const { local, domain } = parts.value;
           const result = normalizeEmail(email, { syntax });
@@ -117,7 +122,7 @@ describe('agrees with parseAddress on generated input', () => {
         fc.oneof(providerAddress, anyAddress),
         syntaxOptions,
         (email, syntax) => {
-          const parts = parseAddress(email.trim(), syntax);
+          const parts = parseAddress(trimmed(email), syntax);
           fc.pre(parts.ok && parts.value.comments.length === 0);
           const { local, domain } = parts.value;
           expect(normalizeEmail(email, { syntax })).toMatchObject({

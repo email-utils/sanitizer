@@ -87,6 +87,25 @@ describe('every form', () => {
     });
   });
 
+  it('trims in linear time, whatever whitespace the input holds', () => {
+    // A regex ending in `[ \t\r\n]+$` retries from every tab here, and took
+    // seconds; the result is the same either way.
+    const email = `a${'\t'.repeat(200_000)}b@example.com`;
+    const start = performance.now();
+    expect(normalizeEmail(email)).toMatchObject({ ok: false });
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it('keeps Unicode whitespace, which an RFC 6531 local part may hold', () => {
+    const unicode: NormalizeOptions = {
+      syntax: { allowComments: true, allowUnicode: true },
+    };
+    expect(normalized('(c)\u00a0a@example.com', unicode)).toMatchObject({
+      key: '\u00a0a@example.com',
+      envelope: '\u00a0a@example.com',
+    });
+  });
+
   it('lowercases the domain, including a literal', () => {
     expect(normalized('Ada@[IPv6:2001:DB8::1]', rfc5321)).toEqual({
       key: 'ada@[ipv6:2001:db8::1]',
@@ -147,6 +166,13 @@ describe('quoted local parts', () => {
     expect(key('"a\\b"@example.com', rfc5321)).toBe('ab@example.com');
   });
 
+  it('drops quotes around Unicode whitespace, which an atom may hold', () => {
+    const options: NormalizeOptions = {
+      syntax: { preset: 'rfc5321', allowUnicode: true },
+    };
+    expect(key('"\u00a0a"@example.com', options)).toBe('\u00a0a@example.com');
+  });
+
   it('applies provider rules once the quotes are gone', () => {
     // "a.da+x" is the same local part as a.da+x.
     expect(key('"A.da+x"@gmail.com', rfc5321)).toBe('ada@gmail.com');
@@ -191,6 +217,13 @@ describe('provider rules', () => {
     expect(key('"any one"@ada.fastmail.com', rfc5321)).toBe('ada@fastmail.com');
   });
 
+  it('does not fold a subdomain that is not an ASCII name', () => {
+    // No Fastmail account has a non-ASCII name, and ü@ needs allowUnicode.
+    expect(key('x@ü.fastmail.com', { syntax: { allowIdn: true } })).toBe(
+      'x@ü.fastmail.com',
+    );
+  });
+
   it('keeps dots where they are significant', () => {
     expect(key('A.da+x@fastmail.com')).toBe('a.da@fastmail.com');
     expect(
@@ -209,6 +242,16 @@ describe('provider rules', () => {
 
   it('keeps the local part whole when nothing comes before the separator', () => {
     expect(key('+news@gmail.com')).toBe('+news@gmail.com');
+  });
+
+  it('collapses and trims the dots the rules leave', () => {
+    expect(key('a.+x@outlook.com')).toBe('a@outlook.com');
+    expect(key('-Ada--Lovelace-@yandex.ru')).toBe('ada.lovelace@yandex.ru');
+  });
+
+  it('keeps the local part the rules would leave empty', () => {
+    expect(key('-@yandex.ru')).toBe('-@yandex.ru');
+    expect(key('-@yandex.ru', { removePeriods: true })).toBe('-@yandex.ru');
   });
 
   it('keeps tags on providers without a separator', () => {
@@ -303,6 +346,19 @@ describe('overrides', () => {
     expect(key('me-news@yahoo.com', options)).toBe('me@yahoo.com');
     // Gmail's own separator wins.
     expect(key('me-news+x@gmail.com', options)).toBe('me-news@gmail.com');
+  });
+
+  it('leaves dots html5 takes alone when no rule changes the local part', () => {
+    // Trimming .a.a to a.a would expose a tag the next normalization cuts.
+    const options: NormalizeOptions = {
+      syntax: { preset: 'html5' },
+      removeSubaddress: true,
+      subaddressSeparator: '.',
+    };
+    expect(key('.a.a@example.com', options)).toBe('.a.a@example.com');
+    expect(key('a..b@example.com', { syntax: { preset: 'html5' } })).toBe(
+      'a..b@example.com',
+    );
   });
 
   it('the overrides still apply with `providerRules: false`', () => {
