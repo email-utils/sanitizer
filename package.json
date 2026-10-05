@@ -49,12 +49,14 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "bench": "npm run build && vitest bench --run",
-    "check:package": "publint && attw --pack . --profile node16 && size-limit && node scripts/import-cost.ts",
+    "api": "npm run build && node scripts/api-report.ts",
+    "check:package": "publint && attw --pack . --profile node16 && size-limit && node scripts/import-cost.ts && node scripts/api-report.ts --check",
     "pre-commit": "npm run lint && npm run format:check && npm run typecheck",
     "prepack": "npm run build"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
+    "@microsoft/api-extractor": "^7.59.3",
     "@size-limit/preset-small-lib": "^14.1.0",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^5.0.2",
