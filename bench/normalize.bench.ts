@@ -1,10 +1,10 @@
 import { test } from 'vitest';
 import { fixtures, LegacySanitizer, sanitizer, syntax } from './load';
 
-// Each bench's target sits beside it, from the issue that set it. The PR
-// bench leg (meta#20) compares these names between base and head, and the
-// nightly (meta#21) reads them for its absolute targets, so keep them
-// stable.
+// Each test gives its benches' targets in `task.meta.bench` (bench/meta.ts),
+// with the issue that set them. The PR bench leg (meta#20) checks the ratios
+// and compares these names between base and head, and the nightly (meta#21)
+// checks the absolute targets, so keep them stable.
 const { createSanitizer, normalizeEmail } = sanitizer;
 const { sanitizerFixtures } = fixtures;
 const { parseAddress } = syntax;
@@ -20,7 +20,14 @@ const typical = 'Ada.Lovelace+news@gmail.com';
 //   the PR gate's ratio (meta#20), which holds on any runner. normalizeEmail
 //   parses exactly once, so the ratio is what building the three forms and
 //   the key costs on top.
-test('typical address with provider detection', async ({ bench }) => {
+test('typical address with provider detection', async ({ bench, task }) => {
+  task.meta.bench = {
+    normalizeEmail: {
+      p50: 400,
+      within: { bench: 'parseAddress', max: 2.5 },
+      source: 'sanitizer#8',
+    },
+  };
   await bench.compare(
     bench('normalizeEmail', () => {
       normalizeEmail(typical);
@@ -86,7 +93,12 @@ const stripped = new LegacySanitizer({
   local: { removePeriods: true, removePlusTag: true },
 });
 
-test('0.0.1 comparison (informational)', async ({ bench }) => {
+test('0.0.1 comparison (informational)', async ({ bench, task }) => {
+  // The legacy column pairs v1 with 0.0.1's closest work: Gmail's dots and
+  // tag removed.
+  task.meta.bench = {
+    normalizeEmail: { legacy: '0.0.1 sanitize(), dots and tag removed' },
+  };
   await bench.compare(
     bench('0.0.1 sanitize(), lowercase only', () => {
       lowercase.sanitize(typical);
