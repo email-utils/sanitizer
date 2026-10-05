@@ -1,10 +1,9 @@
 import { test } from 'vitest';
 import { fixtures, LegacySanitizer, sanitizer, syntax } from './load';
 
-// Each test gives its benches' targets in `task.meta.bench` (bench/meta.ts),
-// with the issue that set them. The PR bench leg (meta#20) checks the ratios
-// and compares these names between base and head, and the nightly (meta#21)
-// checks the absolute targets, so keep them stable.
+// Each bench's target sits beside it, from the issue that set it. Nothing
+// checks them: the benches run locally, with `npm run bench`, for the docs'
+// numbers (meta#118).
 const { createSanitizer, normalizeEmail } = sanitizer;
 const { sanitizerFixtures } = fixtures;
 const { parseAddress } = syntax;
@@ -14,20 +13,11 @@ const { parseAddress } = syntax;
 const typical = 'Ada.Lovelace+news@gmail.com';
 
 // sanitizer#8's targets, for this address:
-// - normalizeEmail ≤ 400 ns p50: the nightly's absolute target (meta#21),
-//   set on Apple Silicon and checked on a GitHub runner against 3× that.
-// - normalizeEmail ≤ 2.5× parseAddress on the same input in the same run:
-//   the PR gate's ratio (meta#20), which holds on any runner. normalizeEmail
-//   parses exactly once, so the ratio is what building the three forms and
-//   the key costs on top.
-test('typical address with provider detection', async ({ bench, task }) => {
-  task.meta.bench = {
-    normalizeEmail: {
-      p50: 400,
-      within: { bench: 'parseAddress', max: 2.5 },
-      source: 'sanitizer#8',
-    },
-  };
+// - normalizeEmail ≤ 400 ns p50, absolute, set on Apple Silicon.
+// - normalizeEmail ≤ 2.5× parseAddress on the same input in the same run,
+//   which holds on any machine. normalizeEmail parses exactly once, so the
+//   ratio is what building the three forms and the key costs on top.
+test('typical address with provider detection', async ({ bench }) => {
   await bench.compare(
     bench('normalizeEmail', () => {
       normalizeEmail(typical);
@@ -47,7 +37,7 @@ const optioned = sanitizerFixtures.flatMap(({ input, with: other }) =>
 );
 
 // No target: the corpus, one fixture per rule and failure, tracks every
-// path at once, for the PR regression gate (meta#20).
+// path at once.
 test('corpus', async ({ bench }) => {
   await bench('normalizeEmail, default options', () => {
     for (const input of inputs) {
@@ -93,12 +83,7 @@ const stripped = new LegacySanitizer({
   local: { removePeriods: true, removePlusTag: true },
 });
 
-test('0.0.1 comparison (informational)', async ({ bench, task }) => {
-  // The legacy column pairs v1 with 0.0.1's closest work: Gmail's dots and
-  // tag removed.
-  task.meta.bench = {
-    normalizeEmail: { legacy: '0.0.1 sanitize(), dots and tag removed' },
-  };
+test('0.0.1 comparison (informational)', async ({ bench }) => {
   await bench.compare(
     bench('0.0.1 sanitize(), lowercase only', () => {
       lowercase.sanitize(typical);
