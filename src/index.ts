@@ -25,12 +25,14 @@ let defaults: Rules | undefined;
  * provider's rules for domain aliases, subdomain addressing, dots, hyphens,
  * and subaddress tags; on a domain with no known provider, dots and tags are
  * kept. `key` is itself an address the same options parse, and normalizes to
- * itself. `address` and `envelope` only trim the input and lowercase the
- * domain. A string is trimmed of spaces, tabs, CRs, and LFs and then parsed
- * with the `syntax` options; a parsed address from validator-syntax's
- * `parseAddress` is used as is. A string longer than the `syntax` options'
- * `maxLength` (512 by default) fails before it's trimmed, so surrounding
- * whitespace counts toward it.
+ * itself, unless a domain alias lengthens it past a tiny `maxLength` in the
+ * `syntax` options; the default of 512 is long enough. `address` and
+ * `envelope` only trim the input and lowercase the domain. A string is
+ * trimmed of spaces, tabs, CRs, and LFs and then parsed with the `syntax`
+ * options; a parsed address from validator-syntax's `parseAddress` is used
+ * as is. A string longer than the `syntax` options' `maxLength` (512 by
+ * default) fails before it's trimmed, so surrounding whitespace counts
+ * toward it.
  *
  * @example
  * ```ts

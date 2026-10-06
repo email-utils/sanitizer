@@ -1,7 +1,11 @@
-// The shared result shapes from the API conventions (meta docs/api/
-// conventions.md), declared here so no package depends on another for types.
+// The shared result shapes from the API conventions
+// (https://email-utils.github.io/meta/docs/reference/conventions#results),
+// declared here so no package depends on another for types.
 
-/** The `sanitizer.*` codes from the reason-code catalogue (meta docs/api/reason-codes.md). */
+/**
+ * The `sanitizer.*` codes from the reason-code catalogue
+ * (https://email-utils.github.io/meta/docs/reference/reason-codes#sanitizer).
+ */
 export type ReasonCode = 'sanitizer.address.unparsable';
 
 /**

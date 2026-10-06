@@ -18,7 +18,8 @@ export interface NormalizedEmail {
   /**
    * Uniqueness key: two inputs that reach the same mailbox get the same key.
    * Store and compare it; never send mail to it. Normalizing it again, with
-   * the same options, gives it back.
+   * the same options, gives it back, unless a domain alias lengthened it past
+   * a tiny `syntax.maxLength`.
    */
   key: string;
   /**
