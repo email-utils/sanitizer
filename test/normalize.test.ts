@@ -576,6 +576,16 @@ describe('errors', () => {
     expect(() => normalizeEmail('ada@example.com', bad)).toThrow(TypeError);
     expect(() => createSanitizer(bad)).toThrow(TypeError);
   });
+
+  it('throws TypeError naming an option that doesn’t exist', () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    const bad = { removePlusTag: false } as never;
+    const message = 'Unknown option: removePlusTag';
+    expect(() => normalizeEmail('A.b+x@gmail.com', bad)).toThrow(
+      new TypeError(message),
+    );
+    expect(() => createSanitizer(bad)).toThrow(new TypeError(message));
+  });
 });
 
 describe('createSanitizer', () => {

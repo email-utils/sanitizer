@@ -72,6 +72,23 @@ describe('Gmail rules come from the provider, not flags', () => {
   });
 });
 
+describe('0.0.1 options throw instead of doing nothing', () => {
+  // sanitizer#41: the nested shape went unnoticed, so an upgrade silently
+  // dropped what the options asked for.
+  it.each([
+    ['local', { local: { removePlusTag: true } }, 'ada@example.com'],
+    ['common', { common: { lowercase: false } }, 'Ada+x@example.com'],
+  ])('`%s`', (name, options, sanitized) => {
+    expect(new EmailSanitizer(options).sanitize('Ada+x@example.com')).toBe(
+      sanitized,
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    expect(() => normalizeEmail('Ada+x@example.com', options as never)).toThrow(
+      new TypeError(`Unknown option: ${name}`),
+    );
+  });
+});
+
 describe('case', () => {
   it('`lowercase: false` becomes `address`, and the key is always lowercase', () => {
     const sanitizer = new EmailSanitizer({ common: { lowercase: false } });
