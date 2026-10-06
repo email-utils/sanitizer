@@ -158,6 +158,7 @@ describe('previewSanitizerOptions', () => {
   it.each<[string, unknown, unknown]>([
     ['options that aren’t an object', 'strict', undefined],
     ['a malformed option', { removePeriods: 'yes' }, undefined],
+    ['an unknown option', { removePlusTag: true }, undefined],
     ['malformed syntax options', { syntax: { preset: 'loose' } }, undefined],
     ['addresses that aren’t an array', undefined, 'ada@example.com'],
     ['a non-string address', undefined, ['ada@example.com', 42]],

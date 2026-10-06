@@ -91,8 +91,8 @@ export interface SanitizerPreview {
  * ```
  *
  * @param addresses - The inputs to normalize; the corpus's by default.
- * @throws TypeError when `options` are malformed, or `addresses` isn't an
- * array of strings.
+ * @throws TypeError when `options` are malformed or name an option that
+ * doesn't exist, or `addresses` isn't an array of strings.
  */
 export function previewSanitizerOptions(
   options?: NormalizeOptions,

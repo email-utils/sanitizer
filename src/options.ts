@@ -51,6 +51,15 @@ function lookup(id: ProviderId): ProviderInfo | undefined {
   return byId.get(id);
 }
 
+const optionNames: ReadonlySet<string> = new Set([
+  'syntax',
+  'provider',
+  'providerRules',
+  'removePeriods',
+  'removeSubaddress',
+  'subaddressSeparator',
+]);
+
 function flag(
   options: NormalizeOptions,
   name: 'providerRules' | 'removePeriods' | 'removeSubaddress',
@@ -65,11 +74,19 @@ function flag(
 /**
  * Checks `options` and resolves them into {@link Rules}.
  *
- * @throws TypeError when `options` are malformed.
+ * @throws TypeError when `options` are malformed or name an option that
+ * doesn't exist, such as 0.0.1's `local` or `removePlusTag`.
  */
 export function resolve(options: NormalizeOptions = {}): Rules {
   if (typeof options !== 'object' || options === null) {
     throw new TypeError('Expected `options` to be an object');
+  }
+  // An unknown key is most often a 0.0.1 option, which would otherwise do
+  // nothing without saying so.
+  for (const key of Object.keys(options)) {
+    if (!optionNames.has(key)) {
+      throw new TypeError(`Unknown option: ${key}`);
+    }
   }
   const { provider, subaddressSeparator = '+' } = options;
   if (provider !== undefined && typeof provider !== 'string') {

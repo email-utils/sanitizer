@@ -59,7 +59,7 @@ let defaults: Rules | undefined;
  * ```
  *
  * @throws TypeError when `email` is neither a string nor a parsed address,
- * or `options` are malformed.
+ * or `options` are malformed or name an option that doesn't exist.
  */
 export function normalizeEmail(
   email: string | ParsedAddress,
@@ -103,7 +103,8 @@ export interface Sanitizer {
  * createSanitizer({ subaddressSeparator: '--' }); // => throws TypeError
  * ```
  *
- * @throws TypeError when `options` are malformed.
+ * @throws TypeError when `options` are malformed or name an option that
+ * doesn't exist.
  */
 export function createSanitizer(options?: NormalizeOptions): Sanitizer {
   const rules = resolve(options);
