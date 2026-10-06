@@ -210,6 +210,18 @@ describe('normalizing again, where it once changed the form', () => {
       '"\u00a0a"@example.com',
       { syntax: { preset: 'rfc5321', allowUnicode: true } },
     ],
+    // sanitizer#40: icloud.com and yandex.ru would take these past 254
+    // characters.
+    [
+      'a 254-character address on an iCloud alias',
+      `${'a'.repeat(247)}@me.com`,
+      { syntax: { preset: 'rfc5322' } },
+    ],
+    [
+      'a 254-character address on a Yandex alias',
+      `${'a'.repeat(248)}@ya.ru`,
+      { syntax: { preset: 'html5' } },
+    ],
   ])('the key gives the same key for %s', (_, email, options) => {
     const [key, again] = keyedTwice(email, options);
     expect(again).toMatchObject({ ok: true, value: { key } });
