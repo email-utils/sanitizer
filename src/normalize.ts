@@ -146,6 +146,25 @@ function tidyDots(local: string, before: string): string {
   return tidied === '' ? before : tidied;
 }
 
+/**
+ * `text`'s length in UTF-8 octets, the way validator-syntax measures a
+ * local part against the 254-character address limit. It's the same as
+ * `text.length` for ASCII.
+ */
+function utf8Length(text: string): number {
+  let octets = text.length;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    // A surrogate pair is two units and four octets.
+    if (code >= 0x800 && (code < 0xd800 || code > 0xdfff)) {
+      octets += 2;
+    } else if (code >= 0x80) {
+      octets += 1;
+    }
+  }
+  return octets;
+}
+
 /** The uniqueness key, with the rows the API page marks "provider-rule". */
 function toKey(
   parsedLocal: string,
@@ -155,6 +174,7 @@ function toKey(
 ): string {
   let { local, rules: localRules } = keyLocal(parsedLocal);
   const known = rules.providerRules ? provider : undefined;
+  let canonical: string | undefined;
   if (known !== undefined) {
     // Subdomain addressing: news@ada.fastmail.com delivers to ada@fastmail.com.
     const parent = known.subdomainAddressing
@@ -165,8 +185,8 @@ function toKey(
       localRules = true;
       domain = parent;
     }
-    if (known.canonicalDomain !== undefined && known.domains.includes(domain)) {
-      domain = known.canonicalDomain;
+    if (known.domains.includes(domain)) {
+      canonical = known.canonicalDomain;
     }
   }
   if (localRules) {
@@ -186,6 +206,16 @@ function toKey(
       local = local.replaceAll('.', '');
     }
     local = tidyDots(local, before);
+  }
+  // A domain alias can lengthen the key: me.com keys as icloud.com. Where
+  // that would take it past the 254 characters an address may have, the
+  // domain stays as written, so the key still parses. Both domains are
+  // ASCII, one octet a character.
+  if (
+    canonical !== undefined &&
+    utf8Length(local) + 1 + canonical.length <= 254
+  ) {
+    domain = canonical;
   }
   return `${local}@${domain}`;
 }

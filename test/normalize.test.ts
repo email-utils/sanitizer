@@ -293,6 +293,40 @@ describe('provider rules', () => {
     expect(key('ada@ya.ru')).toBe('ada@yandex.ru');
   });
 
+  it('maps an alias only while the key stays within 254 characters', () => {
+    // rfc5322 has no 64-character local-part cap, so the local part can
+    // take up nearly all of an address.
+    const fits = `${'a'.repeat(243)}@me.com`;
+    expect(key(fits, rfc5322)).toBe(`${'a'.repeat(243)}@icloud.com`);
+    expect(key(`a${fits}`, rfc5322)).toBe(`a${fits}`);
+    expect(key(`${'a'.repeat(246)}@ya.ru`, rfc5322)).toBe(
+      `${'a'.repeat(246)}@ya.ru`,
+    );
+  });
+
+  it('maps an alias once the other rules shorten the local part enough', () => {
+    expect(key(`ada+${'x'.repeat(244)}@ya.ru`, rfc5322)).toBe('ada@yandex.ru');
+  });
+
+  it.each([
+    ['é', 2],
+    ['中', 3],
+    ['😀', 4],
+  ])(
+    'counts %s in the local part as %i octets, as the parser does',
+    (char, octets) => {
+      // As many as fit beside @icloud.com in 254 octets, then one more.
+      const fits = char.repeat(Math.floor(243 / octets));
+      const options: NormalizeOptions = {
+        syntax: { preset: 'rfc5322', allowUnicode: true },
+      };
+      expect(key(`${fits}@me.com`, options)).toBe(`${fits}@icloud.com`);
+      expect(key(`${fits}${char}@me.com`, options)).toBe(
+        `${fits}${char}@me.com`,
+      );
+    },
+  );
+
   it('leaves domains without a canonical one alone', () => {
     expect(normalized('ada@hotmail.com')).toMatchObject({
       key: 'ada@hotmail.com',
